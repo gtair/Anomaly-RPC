@@ -10,6 +10,9 @@ Simply download the zip from the latest release and drag the gamedata and bin fo
 # Bug reports
 If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Send me a friend request on discord or contact me on the [official anomaly discord server](https://discord.gg/c4RuJNs) @gtair
 
+# Links
+[Moddb download page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc)
+
 # Customization
 While the addon will work out of the box and look great at it, you can fully customize the look of the rpc in [this](https://github.com/gtair/Anomaly-RPC/blob/main/gamedata/configs/rpc_config.ltx) configuration file.
 
