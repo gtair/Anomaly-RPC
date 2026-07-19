@@ -1,5 +1,5 @@
 > [!WARNING]
-> Currently, the mod hooks into d3d11.dll. Therefore, it will only function on the directx11 version of the game and on 64 bit. This is subject to change though.
+> Currently, the mod hooks into d3d11.dll. Therefore, it will only function on the directx11 version of the game. This is subject to change though.
 
 # What it is
 AnomalyRPC is an Addon that implements discord rich presence in S.T.A.L.K.E.R. Anomaly, with a template you can customize using many different placeholders to suit your needs.
