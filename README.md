@@ -1,5 +1,5 @@
 # What it is
-AnomalyRPC is an Addon that implements discord rich presence in S.T.A.L.K.E.R. Anomaly, with templates and many placeholder values to customize your activity to your needs.
+AnomalyRPC is an Addon that implements discord rich presence in S.T.A.L.K.E.R. Anomaly, with a template you can customize using many different placeholders to suit your needs.
 
 # Installation
 Simply download the zip from the latest release and drag the gamedata and bin folders into your root anomaly folder. The script doesn't replace any files so if it warns you about a file conflict, you likely have an actual conflict with another mod. 
