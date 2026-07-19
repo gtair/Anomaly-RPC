@@ -1,11 +1,14 @@
+> [!WARNING]
+> Currently, the mod hooks into d3d11.dll. Therefore, it will only function on the directx11 version of the game and on 64 bit. This is subject to change though.
+
 # What it is
-AnomalyRPC is an Addon that implements discord rich presence in S.T.A.L.K.E.R. Anomaly, with templates and many placeholder values to customize your activity to your needs.
+AnomalyRPC is an Addon that implements discord rich presence in S.T.A.L.K.E.R. Anomaly, with a template you can customize using many different placeholders to suit your needs.
 
 # Installation
 Simply download the zip from the latest release and drag the gamedata and bin folders into your root anomaly folder. The script doesn't replace any files so if it warns you about a file conflict, you likely have an actual conflict with another mod. 
 
 # Bug reports
-If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. 
+If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Send me a friend request on discord or contact me on the [official anomaly discord server](https://discord.gg/c4RuJNs) @gtair
 
 # Customization
 While the addon will work out of the box and look great at it, you can fully customize the look of the rpc in [this](https://github.com/gtair/Anomaly-RPC/blob/main/gamedata/configs/rpc_config.ltx) configuration file.
