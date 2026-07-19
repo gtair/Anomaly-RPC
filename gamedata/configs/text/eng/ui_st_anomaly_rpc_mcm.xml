@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="windows-1251" ?>
+<string_table>
+    <string id="ui_mcm_menu_anomaly_rpc">
+        <text>Anomaly Discord RPC</text>
+    </string>
+    <string id="ui_mcm_anomaly_rpc_title">
+        <text>Anomaly Discord RPC</text>
+    </string>
+    <string id="ui_mcm_anomaly_rpc_debug_mode">
+        <text>Enable Debug Logging</text>
+    </string>
+    <string id="ui_mcm_anomaly_rpc_debug_mode_desc">
+        <text>Prints verbose lifecycle logs, plus a one-time dump of every placeholder value when you load in. Leave off for normal play.</text>
+    </string>
+    <string id="ui_mcm_anomaly_rpc_log_to_file">
+        <text>Redirect Log to Standalone File</text>
+    </string>
+    <string id="ui_mcm_anomaly_rpc_log_to_file_desc">
+        <text>When enabled, dumps logging output directly into a local log file inside your Windows Temp directory. When disabled, outputs normally using the game's printf engine.</text>
+    </string>
+</string_table>

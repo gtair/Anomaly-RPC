@@ -1,0 +1,346 @@
+-- anomaly_rpc.script - Maximum Capability Discord RPC Exporter for Stalker Anomaly
+
+local POLL_INTERVAL_MS = 1000 -- 1 second in milliseconds
+local last_update_time = 0
+local session_start_time = nil
+local has_dumped_placeholders = false
+
+-- Default templates in case the external file is missing or broken
+local default_details = "Level: {level}"
+local default_state = "{faction} | RU: {money} | HP: {health}%"
+
+local LOG_TAG = "[AnomalyRPC]"
+local last_known_debug_state = false
+
+-- =====================================================================
+-- CUSTOM DIRECT-TO-DISK OR PRINTF LOGGING
+-- =====================================================================
+local function write_custom_log(level, text)
+    local timestamp = os.date("%H:%M:%S")
+    local log_msg = string.format("[%s] %s %s %s", timestamp, LOG_TAG, level, text)
+    
+    -- If MCM says write to file, try that first
+    if ui_mcm and ui_mcm.get("anomaly_rpc/log_to_file") then
+        local temp_dir = os.getenv("TEMP") or os.getenv("TMP")
+        if temp_dir then
+            local log_path = temp_dir .. "\\anomaly_rpc_debug.log"
+            local f = io.open(log_path, "a")
+            if f then
+                f:write(log_msg .. "\n")
+                f:close()
+                return
+            end
+        end
+    end
+    
+    -- Default fallback / explicit setting: Spew to standard printf
+    printf("%s", log_msg)
+end
+
+local function is_debug_enabled()
+    if ui_mcm then
+        local v = ui_mcm.get("anomaly_rpc/debug_mode")
+        if v ~= nil then return v end
+    end
+    return false
+end
+
+local function refresh_debug_state()
+    last_known_debug_state = is_debug_enabled()
+end
+
+-- Verbose/lifecycle logging -- only prints when the MCM debug toggle is on.
+local function dbg(fmt, ...)
+    if last_known_debug_state then
+        write_custom_log("[DEBUG]", string.format(fmt, ...))
+    end
+end
+
+-- Real problems (failed writes, missing env vars, etc.) -- always prints,
+-- regardless of the debug toggle, since these are actionable issues.
+local function log_error(fmt, ...)
+    write_custom_log("[ERROR]", string.format(fmt, ...))
+end
+
+-- Safe wrapper to catch engine errors cleanly
+local function safe_call(label, default, fn, ...)
+    local ok, result = pcall(fn, ...)
+    if ok then 
+        return result 
+    else 
+        log_error("Call to '%s' failed, falling back to default (%s): %s", label, tostring(default), tostring(result))
+        return default 
+    end
+end
+
+-- Safely calculates the player's total current squad size
+local function get_squad_size()
+    return safe_call("squad_size", 1, function()
+        local count = 1
+        if axr_companions and axr_companions.list_companions then
+            for id, s_obj in pairs(axr_companions.list_companions) do
+                if s_obj then count = count + 1 end
+            end
+        end
+        return count
+    end)
+end
+
+-- Processes the raw template line and swaps out all {placeholders}
+local function process_template(template_str, variables)
+    if not template_str then return "" end
+    local result = template_str
+    for placeholder, value in pairs(variables) do
+        result = result:gsub("{" .. placeholder .. "}", tostring(value))
+    end
+    return result
+end
+
+-- Native ltx reader supporting all fields from the root configs folder
+local function load_custom_templates()
+    local ini_path = "rpc_config.ltx"
+    local ini = ini_file(ini_path)
+    local data = {}
+    
+    if ini and ini:section_exist("rpc_settings") then
+        local keys = {
+            "details", "state", 
+            "large_image_key", "large_image_text", 
+            "small_image_key", "small_image_text",
+            "party_size", "party_max",
+            "button_1_label", "button_1_url",
+            "button_2_label", "button_2_url"
+        }
+        for _, key in ipairs(keys) do
+            if ini:line_exist("rpc_settings", key) then
+                local raw_val = ini:r_string("rpc_settings", key)
+                if raw_val then
+                    raw_val = raw_val:gsub("^%s+", ""):gsub("%s+$", "")
+                    if string.sub(raw_val, 1, 1) == "\"" and string.sub(raw_val, -1) == "\"" then
+                        raw_val = string.sub(raw_val, 2, -2)
+                    end
+                    data[key] = raw_val
+                end
+            end
+        end
+    end
+    return data
+end
+
+-- Hand-rolled deep JSON encoder supporting arrays and nested structures
+local function json_encode(value)
+    local t = type(value)
+    if t == "table" then
+        local parts = {}
+        local is_array = #value > 0
+        
+        if is_array then
+            for _, v in ipairs(value) do
+                table.insert(parts, json_encode(v))
+            end
+            return "[" .. table.concat(parts, ",") .. "]"
+        else
+            for k, v in pairs(value) do
+                table.insert(parts, string.format("\"%s\":%s", tostring(k), json_encode(v)))
+            end
+            return "{" .. table.concat(parts, ",") .. "}"
+        end
+    elseif t == "string" then
+        return "\"" .. value:gsub("\\", "\\\\"):gsub("\"", "\\\"") .. "\""
+    elseif t == "number" then
+        return tostring(value)
+    elseif t == "boolean" then
+        return value and "true" or "false"
+    else
+        return "null"
+    end
+end
+
+local PLACEHOLDER_DUMP_ORDER = {
+    "level", "level_raw", "faction", "faction_raw",
+    "health", "money", "squad_size",
+    "rank", "rank_raw", "reputation", "reputation_raw",
+    "mutants_killed", "stalkers_killed", "pdas_delivered", "boxes_smashed",
+    "level_changes", "tasks_completed", "artifacts_detected", "enemy_forfeits",
+    "helicopters_downed", "stashes_found", "wounded_helped", "field_dressings",
+}
+
+local function dump_placeholder_values(variables)
+    if not last_known_debug_state then return end
+    write_custom_log("[DEBUG]", "===== Placeholder values (session start) =====")
+    for _, key in ipairs(PLACEHOLDER_DUMP_ORDER) do
+        write_custom_log("[DEBUG]", string.format("%s: %s", key, tostring(variables[key])))
+    end
+    write_custom_log("[DEBUG]", "================================================")
+end
+
+local function write_rpc_json(dump_placeholders)
+    if not db.actor then 
+        return 
+    end
+
+    dbg("Beginning RPC state generation.")
+    
+    local raw_level = safe_call("level.name", "unknown", level.name)
+    local trans_level = safe_call("translate level", raw_level, game.translate_string, raw_level)
+    
+    local raw_faction = safe_call("community", "stalker", character_community, db.actor)
+    raw_faction = raw_faction:gsub("^actor_", "")
+    local trans_faction = safe_call("translate faction", raw_faction, game.translate_string, raw_faction)
+    
+    local health_pct = safe_call("health", 100, function() return math.floor(db.actor.health * 100) end)
+    local money_amount = safe_call("money", 0, db.actor.money, db.actor)
+    local squad_count = get_squad_size()
+
+    local function get_stat(key)
+        return safe_call("stat:" .. key, 0, game_statistics.get_statistic_count, key)
+    end
+
+    local mutants_killed     = get_stat("killed_monsters")
+    local stalkers_killed    = get_stat("killed_stalkers")
+    local pdas_delivered     = get_stat("pdas_delivered")
+    local boxes_smashed      = get_stat("boxes_smashed")
+    local level_changes      = get_stat("level_changes")
+    local tasks_completed    = get_stat("tasks_completed")
+    local artifacts_detected = get_stat("artefacts_detected")
+    local enemy_forfeits     = get_stat("enemies_surrendered")
+    local helicopters_downed = get_stat("helicopters_downed")
+    local stashes_found      = get_stat("stashes_found")
+    local wounded_helped     = get_stat("wounded_helped")
+    local field_dressings    = get_stat("field_dressings")
+
+    local rank_raw = safe_call("rank_raw", 0, function() return db.actor:character_rank() end)
+    local rank_name_raw = safe_call("rank_name", "novice", function() return ranks.get_obj_rank_name(db.actor) end)
+    local rank_name = safe_call("translate rank", rank_name_raw, game.translate_string, rank_name_raw)
+
+    local rept_raw = safe_call("rept_raw", 0, function() return db.actor:character_reputation() end)
+    local rept_name_raw = safe_call("rept_name", "neutral", function()
+        local n = utils_obj.get_reputation_name(db.actor:character_reputation())
+        return n and string.gsub(n, "^st_reputation_", "") or "neutral"
+    end)
+    local rept_name = safe_call("translate reputation", rept_name_raw, game.translate_string, rept_name_raw)
+
+    local variables = {
+        level = trans_level,
+        level_raw = string.lower(raw_level),
+        faction = trans_faction,
+        faction_raw = string.lower(raw_faction),
+        health = health_pct,
+        money = money_amount,
+        squad_size = squad_count,
+        mutants_killed = mutants_killed,
+        stalkers_killed = stalkers_killed,
+        pdas_delivered = pdas_delivered,
+        boxes_smashed = boxes_smashed,
+        level_changes = level_changes,
+        tasks_completed = tasks_completed,
+        artifacts_detected = artifacts_detected,
+        enemy_forfeits = enemy_forfeits,
+        helicopters_downed = helicopters_downed,
+        stashes_found = stashes_found,
+        wounded_helped = wounded_helped,
+        field_dressings = field_dressings,
+        rank = rank_name,
+        rank_raw = rank_raw,
+        reputation = rept_name,
+        reputation_raw = rept_raw
+    }
+
+    local tmpl = load_custom_templates()
+
+    if dump_placeholders then
+        dump_placeholder_values(variables)
+    end
+
+    local discord_payload = {
+        details = process_template(tmpl.details or default_details, variables),
+        state = process_template(tmpl.state or default_state, variables),
+        start_timestamp = session_start_time or os.time(),
+        assets = {
+            large_image = process_template(tmpl.large_image_key or "{level_raw}", variables),
+            large_text = process_template(tmpl.large_image_text or "{level}", variables),
+            small_image = process_template(tmpl.small_image_key or "{faction_raw}", variables),
+            small_text = process_template(tmpl.small_image_text or "{faction}", variables),
+        }
+    }
+
+    local p_size = tonumber(process_template(tmpl.party_size, variables))
+    local p_max = tonumber(process_template(tmpl.party_max, variables))
+    if p_size and (not p_max or p_max == 0) then
+        p_max = p_size
+    end
+    if p_size and p_max then
+        discord_payload.party = {
+            size = { p_size, p_max }
+        }
+    end
+
+    local buttons = {}
+    if tmpl.button_1_label and tmpl.button_1_url then
+        table.insert(buttons, { label = tmpl.button_1_label, url = tmpl.button_1_url })
+    end
+    if tmpl.button_2_label and tmpl.button_2_url then
+        table.insert(buttons, { label = tmpl.button_2_label, url = tmpl.button_2_url })
+    end
+    if #buttons > 0 then
+        discord_payload.buttons = buttons
+    end
+
+    local json_text = json_encode(discord_payload)
+    local temp_dir = os.getenv("TEMP") or os.getenv("TMP")
+    if not temp_dir then 
+        log_error("Could not resolve Windows %%TEMP%%/%%TMP%% environment variable. Cannot write RPC state file.")
+        return 
+    end
+    
+    local path = temp_dir .. "\\rpc_addon_state.json"
+    local f = io.open(path, "w")
+    if f then
+        f:write(json_text)
+        f:close()
+        dbg("Wrote RPC state to '%s' (%d bytes).", path, #json_text)
+    else
+        log_error("Failed to open '%s' for writing. Check folder permissions.", path)
+    end
+    dbg("RPC state generation complete.")
+end
+
+function actor_on_update()
+    if not db.actor then return end
+    
+    local tg = time_global()
+    if (tg > last_update_time + POLL_INTERVAL_MS) then
+        last_update_time = tg
+        refresh_debug_state()
+        dbg("Poll interval elapsed, refreshing RPC state.")
+        safe_call("write_rpc_json (poll tick)", nil, write_rpc_json)
+    end
+end
+
+function on_game_start()
+    refresh_debug_state()
+    RegisterScriptCallback("on_option_change", function(...) refresh_debug_state() end)
+
+    dbg("on_game_start: registering callbacks.")
+
+    RegisterScriptCallback("actor_on_first_update", function()
+        refresh_debug_state()
+        dbg("actor_on_first_update fired: initializing session.")
+        if not session_start_time then 
+            session_start_time = os.time() 
+            dbg("Session start timestamp set to %s.", tostring(session_start_time))
+        end
+        local should_dump = not has_dumped_placeholders
+        has_dumped_placeholders = true
+        safe_call("write_rpc_json (initial write)", nil, write_rpc_json, should_dump)
+    end)
+
+    RegisterScriptCallback("actor_on_update", actor_on_update)
+
+    RegisterScriptCallback("on_level_changing", function()
+        dbg("on_level_changing fired: forcing an immediate RPC refresh before the level unloads.")
+        safe_call("write_rpc_json (level change)", nil, write_rpc_json)
+    end)
+    
+    dbg("Callback registration complete.")
+end

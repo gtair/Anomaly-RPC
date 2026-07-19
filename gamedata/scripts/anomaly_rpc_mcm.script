@@ -1,0 +1,35 @@
+-- anomaly_rpc_mcm.script - MCM registration for the Anomaly Discord RPC Exporter
+
+function on_mcm_load()
+    return {
+        id = "anomaly_rpc",
+        sh = true,
+        gr = {
+            { id = "anomaly_rpc_title", type = "title", text = "ui_mcm_anomaly_rpc_title" },
+            {
+                id   = "debug_mode",
+                type = "check",
+                val  = 1,
+                def  = false,
+                text = "ui_mcm_anomaly_rpc_debug_mode",
+            },
+            {
+                id   = "debug_mode_desc",
+                type = "desc",
+                text = "ui_mcm_anomaly_rpc_debug_mode_desc",
+            },
+            {
+                id   = "log_to_file",
+                type = "check",
+                val  = 1,
+                def  = false,
+                text = "ui_mcm_anomaly_rpc_log_to_file",
+            },
+            {
+                id   = "log_to_file_desc",
+                type = "desc",
+                text = "ui_mcm_anomaly_rpc_log_to_file_desc",
+            },
+        }
+    }
+end

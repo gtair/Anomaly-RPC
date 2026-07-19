@@ -1,0 +1,57 @@
+[rpc_settings]
+; ==============================================================================
+; Discord Rich Presence Configuration
+; ==============================================================================
+; Available placeholders:
+;   {level}              - Translated map name (e.g., Cordon, Pripyat Outskirts)
+;   {level_raw}          - Raw map name for image assets (e.g., l01_cordon)
+;   {faction}            - Translated faction name (e.g., Loner, Mercenary)
+;   {faction_raw}        - Raw faction internal ID for image assets (e.g., killer)
+;   {money}              - Player cash in Rubles (RU)
+;   {health}             - Player health percentage (0-100)
+;   {squad_size}         - Total size of your active squad (including you)
+;
+;   {rank}               - Translated rank name (e.g., Veteran)
+;   {rank_raw}           - Raw numeric rank value
+;   {reputation}         - Translated reputation name (e.g., Good)
+;   {reputation_raw}     - Raw numeric reputation value
+;
+;   {mutants_killed}     - Total mutants killed
+;   {stalkers_killed}    - Total stalkers killed (all factions combined)
+;   {pdas_delivered}     - PDAs delivered to Sidorovich/traders
+;   {boxes_smashed}      - Loot boxes/crates smashed
+;   {level_changes}      - Number of times you've changed levels/maps
+;   {tasks_completed}    - Tasks/quests completed
+;   {artifacts_detected} - Artifacts detected in anomaly fields
+;   {enemy_forfeits}     - Enemies who surrendered to you
+;   {helicopters_downed} - Helicopters shot down
+;   {stashes_found}      - Stashes found
+;   {wounded_helped}     - Wounded NPCs helped/healed
+;   {field_dressings}    - Field dressings/bandages applied
+; ==============================================================================
+
+; Primary Text Lines
+; These display as "Details" and "State" on your Discord profile
+details = "Exploring the anomalies of {level}"
+state = "{money}₽ | {health}% HP"
+
+; Assets
+large_image_key = "https://raw.githubusercontent.com/gtair/Anomaly-RPC/refs/heads/main/assets/Anomaly_icon.webp"
+large_image_text = "Playing Stalker Anomaly"
+; if you are using my app ID in the cpp code, you can keep this to display faction patches.
+small_image_key = "{faction_raw}"
+small_image_text = "Member of {faction}"
+
+; Party/Squad Details 
+; Displays as "(party_size of party_max)" in Discord
+party_size = {squad_size}
+; if 0, party_max will be the same as party_size
+party_max = 0
+
+; Clickable Custom Buttons
+; Discord allows a maximum of 2 buttons. URLs must be full HTTPS links.
+button_1_label = "Download Anomaly"
+button_1_url = "https://www.moddb.com/mods/stalker-anomaly"
+
+button_2_label = "Download Addon"
+button_2_url = "https://github.com/gtair/Anomaly-RPC"
