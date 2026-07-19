@@ -14,21 +14,11 @@ function on_mcm_load()
                 text = "ui_mcm_anomaly_rpc_debug_mode",
             },
             {
-                id   = "debug_mode_desc",
-                type = "desc",
-                text = "ui_mcm_anomaly_rpc_debug_mode_desc",
-            },
-            {
                 id   = "log_to_file",
                 type = "check",
                 val  = 1,
                 def  = false,
                 text = "ui_mcm_anomaly_rpc_log_to_file",
-            },
-            {
-                id   = "log_to_file_desc",
-                type = "desc",
-                text = "ui_mcm_anomaly_rpc_log_to_file_desc",
             },
         }
     }
