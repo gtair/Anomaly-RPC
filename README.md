@@ -8,7 +8,7 @@ AnomalyRPC is an Addon that implements discord rich presence in S.T.A.L.K.E.R. A
 Simply download the zip from the latest release and drag the gamedata and bin folders into your root anomaly folder. The script doesn't replace any files so if it warns you about a file conflict, you likely have an actual conflict with another mod. 
 
 # Bug reports
-If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Send me a friend request on discord or contact me on the [official anomaly discord server](https://discord.gg/c4RuJNs) @gtair
+If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Either send me a friend request on discord, contact me on the [official anomaly discord server](https://discord.gg/c4RuJNs) @gtair or comment under the moddb page of the addon
 
 # Links
 [Moddb download page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc)
