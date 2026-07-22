@@ -1,11 +1,8 @@
 > [!WARNING]
 > Currently, the mod hooks into d3d11.dll. Therefore, it will only function on the directx11 version of the game. This is subject to change though.
 
-# What it is
-AnomalyRPC is an Addon that implements discord rich presence in S.T.A.L.K.E.R. Anomaly, with a template you can customize using many different placeholders to suit your needs.
-
 # Installation
-Simply download the zip from the latest release and drag the gamedata and bin folders into your root anomaly folder. The script doesn't replace any files so if it warns you about a file conflict, you likely have an actual conflict with another mod. 
+Simply download the zip from the latest release and drag the gamedata and bin folders into your root anomaly folder. If you're making a modpack, you also need to put the license file somewhere players can find it. The script doesn't replace any files so if it warns you about a file conflict, you likely have an actual conflict with another mod. 
 
 # Bug reports
 If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Either send me a friend request on discord, contact me on the [official anomaly discord server](https://discord.gg/c4RuJNs) @gtair or comment under the moddb page of the addon
@@ -58,4 +55,4 @@ While the addon will work out of the box and look great at it, you can fully cus
 | `{field_dressings}` | Field dressings/bandages applied | 7 |
 
 ## advanced customization
-To use your own discord app (in order to, for example, change the name of the app or to upload your own assets without having to host them on an external page) you can edit [this](https://github.com/gtair/Anomaly-RPC/blob/5266374ea411da60dc1094ab79a682d84dbed066/main.cpp#L16) variable to your own app id and then compile d3d11.dll yourself
+To use your own discord app (in order to, for example, change the name of the app or to upload your own assets without having to host them on an external page) you can edit [this](https://github.com/gtair/Anomaly-RPC/blob/5266374ea411da60dc1094ab79a682d84dbed066/main.cpp#L16) variable to your own app ID and then compile d3d11.dll yourself. In the future, you won't have to compile yourself anymore. 
