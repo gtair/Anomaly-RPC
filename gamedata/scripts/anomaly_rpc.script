@@ -63,6 +63,51 @@ local function safe_call(label, default, fn, ...)
     return default
 end
 
+local CP1251_TO_UNICODE = {
+    [0xA8] = 0x0401, -- Ё
+    [0xB8] = 0x0451, -- ё
+    [0xB2] = 0x0406, -- І (Ukrainian, just in case)
+    [0xB3] = 0x0456, -- і
+    [0xBA] = 0x0458, -- ј
+    [0xAA] = 0x0404, -- Є
+    [0xBD] = 0x0455, -- ѕ
+}
+
+local function cp1251_to_utf8(s)
+    if not s then return s end
+    local out = {}
+    for i = 1, #s do
+        local b = s:byte(i)
+        local cp
+
+        if b < 0x80 then
+            cp = b
+        elseif CP1251_TO_UNICODE[b] then
+            cp = CP1251_TO_UNICODE[b]
+        elseif b >= 0xC0 then
+            cp = b - 0xC0 + 0x0410
+        else
+            cp = b
+        end
+
+        if cp < 0x80 then
+            table.insert(out, string.char(cp))
+        elseif cp < 0x800 then
+            table.insert(out, string.char(
+                0xC0 + math.floor(cp / 0x40),
+                0x80 + (cp % 0x40)
+            ))
+        else
+            table.insert(out, string.char(
+                0xE0 + math.floor(cp / 0x1000),
+                0x80 + (math.floor(cp / 0x40) % 0x40),
+                0x80 + (cp % 0x40)
+            ))
+        end
+    end
+    return table.concat(out)
+end
+
 local function get_squad_size()
     return safe_call("squad_size", 1, function()
         local count = 1 -- Start with 1 for the Actor
@@ -191,9 +236,9 @@ local function build_variables(is_in_menu)
     raw_faction = raw_faction:gsub("^actor_", "")
 
     local variables = {
-        level = is_in_menu and "Main Menu" or safe_call("translate level", raw_level, game.translate_string, raw_level),
+        level = is_in_menu and "Main Menu" or cp1251_to_utf8(safe_call("translate level", raw_level, game.translate_string, raw_level)),
         level_raw = string.lower(raw_level),
-        faction = is_in_menu and "" or safe_call("translate faction", raw_faction, game.translate_string, raw_faction),
+        faction = is_in_menu and "" or cp1251_to_utf8(safe_call("translate faction", raw_faction, game.translate_string, raw_faction)),
         faction_raw = string.lower(raw_faction),
         health = is_in_menu and 0 or safe_call("health", 100, function() return math.floor(db.actor.health * 100) end),
         money = is_in_menu and 0 or safe_call("money", 0, db.actor.money, db.actor),
@@ -207,9 +252,9 @@ local function build_variables(is_in_menu)
     for _, def in ipairs(STAT_DEFS) do
         variables[def[1]] = get_stat(def[2])
     end
-    variables.rank = safe_call("translate rank", "novice", game.translate_string, ranks.get_obj_rank_name(db.actor))
+    variables.rank = cp1251_to_utf8(safe_call("translate rank", "novice", game.translate_string, ranks.get_obj_rank_name(db.actor)))
     variables.rank_raw = safe_call("rank_raw", 0, function() return db.actor:character_rank() end)
-    variables.reputation = safe_call("translate reputation", "neutral", game.translate_string, utils_obj.get_reputation_name(db.actor:character_reputation()))
+    variables.reputation = cp1251_to_utf8(safe_call("translate reputation", "neutral", game.translate_string, utils_obj.get_reputation_name(db.actor:character_reputation())))
     variables.reputation_raw = safe_call("rept_raw", 0, function() return db.actor:character_reputation() end)
 
     return variables
