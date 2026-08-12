@@ -124,6 +124,28 @@ local function get_squad_size()
     end)
 end
 
+local function get_active_task_title()
+    return safe_call("active_task_title", "", function()
+        if not db.actor then return "" end
+
+        local tm = task_manager.get_task_manager()
+        if not tm or not tm.task_info then return "" end
+
+        for _, tsk in pairs(tm.task_info) do
+            local t = tsk.t or db.actor:get_task(tsk.id, true)
+            if t and db.actor:is_active_task(t) then
+                local raw_title = tsk.current_title or tsk.title
+                if raw_title and raw_title ~= "" then
+                    return cp1251_to_utf8(game.translate_string(raw_title))
+                end
+                return ""
+            end
+        end
+
+        return "" -- nothing is currently tracked/selected
+    end)
+end
+
 local function is_empty(s)
     return s == nil or s == ""
 end
@@ -196,6 +218,7 @@ local PLACEHOLDER_DUMP_ORDER = {
     "level", "level_raw", "faction", "faction_raw",
     "health", "money", "squad_size",
     "rank", "rank_raw", "reputation", "reputation_raw",
+    "active_task",
     "mutants_killed", "stalkers_killed", "pdas_delivered", "boxes_smashed",
     "level_changes", "tasks_completed", "artifacts_detected", "enemy_forfeits",
     "helicopters_downed", "stashes_found", "wounded_helped", "field_dressings",
@@ -246,6 +269,7 @@ local function build_variables(is_in_menu)
     }
 
     if is_in_menu then
+        variables.active_task = ""
         return variables
     end
 
@@ -256,6 +280,7 @@ local function build_variables(is_in_menu)
     variables.rank_raw = safe_call("rank_raw", 0, function() return db.actor:character_rank() end)
     variables.reputation = cp1251_to_utf8(safe_call("translate reputation", "neutral", game.translate_string, utils_obj.get_reputation_name(db.actor:character_reputation())))
     variables.reputation_raw = safe_call("rept_raw", 0, function() return db.actor:character_reputation() end)
+    variables.active_task = get_active_task_title()
 
     return variables
 end

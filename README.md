@@ -31,6 +31,7 @@ While the addon will work out of the box and look great at it, you can fully cus
 | `{level_raw}` | Raw map name | l01_escape |
 | `{faction}` | Translated faction name | Mercenary |
 | `{faction_raw}` | Raw faction name | killer |
+| `{active_task}` | The currently active task | Turn off the Brain Scorcher |
 | `{money}` | Player cash in Rubles | 69420 |
 | `{health}` | Player health percentage | 65 |
 | `{squad_size}` | Total size of your active squad (including you) | 3 |
