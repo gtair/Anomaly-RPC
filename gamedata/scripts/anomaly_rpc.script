@@ -308,9 +308,13 @@ local function write_rpc_json(dump_placeholders)
 
         local p_size = tonumber(process_template(tmpl.party_size, variables))
         local p_max = tonumber(process_template(tmpl.party_max, variables))
-        if p_size and (not p_max or p_max == 0) then p_max = p_size end
-        if p_size and p_max then
-            discord_payload.party = { size = { p_size, p_max } }
+
+        if p_size ~= nil then
+            if p_max ~= nil then
+                discord_payload.party = { size = { p_size, p_max } }
+            else
+                discord_payload.party = { size = { p_size } }
+            end
         end
     end
 

@@ -32,8 +32,8 @@ small_image_text = "Member of {faction}"
 
 party_size = {squad_size}
 
-; if 0, party_max will be the same as party_size. recommended not to change
-party_max = 0
+; party_max can never be less than party_size so it is recommended to not change this.
+party_max = {squad_size}
 
 
 ; ========================== Clickable Custom Buttons ==========================
