@@ -23,24 +23,72 @@ const char* LOG_SUBFOLDER = "AnomalyRPC\\logs";
 // Shared folder helpers
 // ---------------------------------------------------------------------
 
-std::string GetTempSubdir(const char* subPath) {
-    char tempPath[MAX_PATH];
-    if (!GetTempPathA(MAX_PATH, tempPath)) return std::string();
+bool CreateDirectoryRecursive(const std::string& absPath) {
+    std::string path = absPath;
+    while (!path.empty() && path.back() == '\\') path.pop_back();
+    if (path.empty()) return false;
 
-    std::string dir = std::string(tempPath) + subPath + "\\";
-    if (CreateDirectoryA(dir.c_str(), NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
+    size_t pos = 0;
+    if (path.size() > 2 && path[0] == '\\' && path[1] == '\\') {
+        size_t p1 = path.find('\\', 2);
+        size_t p2 = (p1 != std::string::npos) ? path.find('\\', p1 + 1) : std::string::npos;
+        pos = (p2 != std::string::npos) ? p2 + 1 : path.size();
+    } else {
+        size_t colon = path.find(':');
+        pos = (colon != std::string::npos) ? colon + 2 : 0;
+    }
+
+    while (pos < path.size()) {
+        size_t slash = path.find('\\', pos);
+        std::string sub = (slash == std::string::npos) ? path : path.substr(0, slash);
+        if (!CreateDirectoryA(sub.c_str(), NULL)) {
+            DWORD err = GetLastError();
+            if (err != ERROR_ALREADY_EXISTS) return false;
+        }
+        if (slash == std::string::npos) break;
+        pos = slash + 1;
+    }
+    return true;
+}
+
+std::string GetExeDir() {
+    char exePath[MAX_PATH] = {};
+    if (!GetModuleFileNameA(NULL, exePath, MAX_PATH)) return std::string();
+    std::string path(exePath);
+    size_t lastSlash = path.find_last_of("\\/");
+    if (lastSlash == std::string::npos) return std::string();
+    return path.substr(0, lastSlash);
+}
+
+std::string GetGameAppdataBase() {
+    std::string exeDir = GetExeDir();
+    if (exeDir.empty()) return std::string();
+    std::string raw = exeDir + "\\..\\appdata\\";
+
+    char normalized[MAX_PATH] = {};
+    if (!GetFullPathNameA(raw.c_str(), MAX_PATH, normalized, NULL)) return std::string();
+    std::string result(normalized);
+    if (result.back() != '\\') result += '\\';
+    return result;
+}
+
+std::string GetSubdir(const char* subPath) {
+    std::string base = GetGameAppdataBase();
+    if (base.empty()) return std::string();
+    std::string dir = base + subPath + "\\";
+    if (CreateDirectoryRecursive(dir)) {
         return dir;
     }
     return std::string();
 }
 
 std::string GetAnomalyRpcDir() {
-    return GetTempSubdir(RPC_SUBFOLDER);
+    return GetSubdir(RPC_SUBFOLDER);
 }
 
 std::string GetAnomalyRpcLogDir() {
     GetAnomalyRpcDir();
-    return GetTempSubdir(LOG_SUBFOLDER);
+    return GetSubdir(LOG_SUBFOLDER);
 }
 
 // ---------------------------------------------------------------------

@@ -18,15 +18,12 @@ local function write_custom_log(level, text)
     local log_msg = string.format("[%s] %s %s %s", timestamp, LOG_TAG, level, text)
 
     if ui_mcm and ui_mcm.get("anomaly_rpc/log_to_file") then
-        local temp_dir = os.getenv("TEMP") or os.getenv("TMP")
-        if temp_dir then
-            local log_dir = temp_dir .. "\\" .. LOG_SUBFOLDER
-            local f = io.open(log_dir .. "\\anomaly_rpc_debug.log", "a")
-            if f then
-                f:write(log_msg .. "\n")
-                f:close()
-                return
-            end
+        local log_dir = "..\\appdata\\" .. LOG_SUBFOLDER
+        local f = io.open(log_dir .. "\\anomaly_rpc_debug.log", "a")
+        if f then
+            f:write(log_msg .. "\n")
+            f:close()
+            return
         end
     end
     printf("%s", log_msg)
@@ -356,10 +353,7 @@ local function write_rpc_json(dump_placeholders)
         return
     end
 
-    local temp_dir = os.getenv("TEMP") or os.getenv("TMP")
-    if not temp_dir then return end
-
-    local final_path = temp_dir .. "\\" .. RPC_SUBFOLDER .. "\\rpc_addon_state.json"
+    local final_path = "..\\appdata\\" .. RPC_SUBFOLDER .. "\\rpc_addon_state.json"
 
     local f = io.open(final_path, "w")
     if not f then return end
