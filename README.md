@@ -10,7 +10,7 @@ Just delete the files you originally installed. Additionally the addon creates t
 This mod should be compatible with virtually every other mod for this game except for mods that also hook into d3d11.dll though I wouldn't know of a single mod that does this.
 
 # Bug reports
-If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Write a comment on the [moddb page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc/) of the addon.
+If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Write a comment on the [moddb page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc/) of the addon. Additionally you can find me on discord (including the official anomaly discord server) under the handle @gtair
 
 # Customization
 While the addon will work out of the box and look great at it, you can fully customize the look of the rpc in [this](https://github.com/gtair/Anomaly-RPC/blob/main/gamedata/configs/rpc_config.ltx) configuration file;
