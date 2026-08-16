@@ -4,16 +4,16 @@ Simply download the zip from the latest release and drag the gamedata and bin fo
 > Currently, the mod hooks into d3d11.dll. Therefore, it will only function on the directx11 version of the game. This is subject to change though.
 
 ## Uninstall
-Just delete the files you originally installed. Additionally the addon creates the folder .\appdata\AnomalyRPC
+Just delete the files you originally installed. Additionally the addon creates the folder `.\appdata\AnomalyRPC`
 
 ## Compatability
 This mod should be compatible with virtually every other mod for this game except for mods that also hook into d3d11.dll though I wouldn't know of a single mod that does this.
 
 # Bug reports
-If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Either send me a friend request on discord, contact me on the [official anomaly discord server](https://discord.gg/c4RuJNs) @gtair or comment under the moddb page of the addon
+If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Write a comment on the [moddb page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc/) of the addon.
 
 # Customization
-While the addon will work out of the box and look great at it, you can fully customize the look of the rpc in [this](https://github.com/gtair/Anomaly-RPC/blob/main/gamedata/configs/rpc_config.ltx) configuration file.
+While the addon will work out of the box and look great at it, you can fully customize the look of the rpc in [this](https://github.com/gtair/Anomaly-RPC/blob/main/gamedata/configs/rpc_config.ltx) configuration file;
 
 ## Keys you can change
 <img width="452" height="184" alt="Activity_Boxes" src="https://github.com/user-attachments/assets/3bf78e98-0170-43e3-91ea-c4a2d0183f69" />
