@@ -13,13 +13,6 @@ function on_mcm_load()
                 def  = false,
                 text = "ui_mcm_anomaly_rpc_debug_mode",
             },
-            {
-                id   = "log_to_file",
-                type = "check",
-                val  = 1,
-                def  = false,
-                text = "ui_mcm_anomaly_rpc_log_to_file",
-            },
         }
     }
 end

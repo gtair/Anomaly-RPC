@@ -1,32 +1,30 @@
-local POLL_INTERVAL_MS = 1000
-local last_update_time = 0
-local has_dumped_placeholders = false
+-- ==============================================================================
+-- Configuration
+-- ==============================================================================
+
+local POLL_INTERVAL_MS = 1000          -- how often game state is re-collected while in-game
+local RATE_LIMIT_COOLDOWN_MS = 15000   -- Discord only accepts one SET_ACTIVITY roughly every 15s
+local RECONNECT_RETRY_MS = 3000        -- gap between pipe reconnect attempts
+local HANDSHAKE_TIMEOUT_MS = 3000      -- give up on a handshake that never gets a response
+local DEFAULT_APP_ID = "1528189827089170582"
 
 local LOG_TAG = "[AnomalyRPC]"
-local last_known_debug_state = false
 
-local RPC_SUBFOLDER = "AnomalyRPC"
-local LOG_SUBFOLDER = RPC_SUBFOLDER .. "\\logs"
-local last_written_json = nil
+local last_update_time = 0
+local has_dumped_placeholders = false
+local last_known_debug_state = false
 
 if not _G.anomaly_rpc_start_time then
     _G.anomaly_rpc_start_time = os.time()
 end
 
+-- ==============================================================================
+-- Logging
+-- ==============================================================================
+
 local function write_custom_log(level, text)
     local timestamp = os.date("%H:%M:%S")
-    local log_msg = string.format("[%s] %s %s %s", timestamp, LOG_TAG, level, text)
-
-    if ui_mcm and ui_mcm.get("anomaly_rpc/log_to_file") then
-        local log_dir = "..\\appdata\\" .. LOG_SUBFOLDER
-        local f = io.open(log_dir .. "\\anomaly_rpc_debug.log", "a")
-        if f then
-            f:write(log_msg .. "\n")
-            f:close()
-            return
-        end
-    end
-    printf("%s", log_msg)
+    printf("[%s] %s %s %s", timestamp, LOG_TAG, level, text)
 end
 
 local function is_debug_enabled()
@@ -58,6 +56,210 @@ local function safe_call(label, default, fn, ...)
     end
     log_error("Call to '%s' failed, falling back to default (%s): %s", label, tostring(default), tostring(result))
     return default
+end
+
+-- ==============================================================================
+-- Discord IPC (LuaJIT FFI, no external DLL)
+-- ==============================================================================
+
+local FFI_OK, ffi = pcall(require, "ffi")
+local k32, ffi_warned = nil, false
+
+if FFI_OK then
+    FFI_OK = pcall(ffi.cdef, [[
+    typedef void* HANDLE;
+    typedef unsigned long DWORD;
+    typedef int BOOL;
+    typedef unsigned long* LPDWORD;
+    typedef void* LPVOID;
+    typedef const void* LPCVOID;
+    typedef const char* LPCSTR;
+
+    HANDLE CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode,
+                        void* lpSecurityAttributes, DWORD dwCreationDisposition,
+                        DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
+    BOOL WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite,
+                   LPDWORD lpNumberOfBytesWritten, void* lpOverlapped);
+    BOOL ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead,
+                  LPDWORD lpNumberOfBytesRead, void* lpOverlapped);
+    BOOL PeekNamedPipe(HANDLE hNamedPipe, LPVOID lpBuffer, DWORD nBufferSize,
+                        LPDWORD lpBytesRead, LPDWORD lpTotalBytesAvail,
+                        LPDWORD lpBytesLeftThisMessage);
+    BOOL CloseHandle(HANDLE hObject);
+    DWORD GetCurrentProcessId();
+    ]])
+    if FFI_OK then
+        k32 = ffi.load("kernel32.dll")
+    end
+end
+
+local GENERIC_READ_WRITE = 0xC0000000 -- GENERIC_READ | GENERIC_WRITE, bits never overlap so + works too
+local OPEN_EXISTING = 3
+local INVALID_HANDLE = FFI_OK and ffi.cast("void*", -1) or nil
+
+-- connection_state: "disconnected" | "handshaking" | "ready"
+local discord_pipe = nil
+local connection_state = "disconnected"
+local next_connect_attempt = 0
+local handshake_deadline = 0
+local last_send_time = -RATE_LIMIT_COOLDOWN_MS
+local pending_payload = nil
+local last_sent_payload = nil
+
+local function get_app_id()
+    local ini = ini_file("rpc_config.ltx")
+    if not (ini and ini:section_exist("rpc_settings") and ini:line_exist("rpc_settings", "app_id")) then
+        return DEFAULT_APP_ID
+    end
+
+    local raw = ini:r_string("rpc_settings", "app_id")
+    if not raw then return DEFAULT_APP_ID end
+
+    raw = raw:gsub("^%s+", ""):gsub("%s+$", "")
+    if raw:sub(1, 1) == "\"" and raw:sub(-1) == "\"" then
+        raw = raw:sub(2, -2)
+    end
+
+    return raw ~= "" and raw or DEFAULT_APP_ID
+end
+
+local function le_u32(n)
+    return string.char(n % 256, math.floor(n / 256) % 256,
+                        math.floor(n / 65536) % 256, math.floor(n / 16777216) % 256)
+end
+
+local function send_frame(opcode, json_payload)
+    local frame = le_u32(opcode) .. le_u32(#json_payload) .. json_payload
+    local buf = ffi.new("char[?]", #frame, frame)
+    local written = ffi.new("DWORD[1]")
+    return k32.WriteFile(discord_pipe, buf, #frame, written, nil) ~= 0
+end
+
+local function read_frame_payload(buf, len)
+    if len <= 8 then return "" end
+    return ffi.string(buf + 8, len - 8)
+end
+
+local function close_discord_pipe(reason)
+    if discord_pipe then
+        k32.CloseHandle(discord_pipe)
+        discord_pipe = nil
+    end
+    if connection_state ~= "disconnected" then
+        dbg("Discord pipe closed (%s).", reason or "unknown")
+    end
+    connection_state = "disconnected"
+end
+
+local function try_connect_discord()
+    for i = 0, 9 do
+        local pipe_name = "\\\\.\\pipe\\discord-ipc-" .. i
+        local handle = k32.CreateFileA(pipe_name, GENERIC_READ_WRITE, 0, nil, OPEN_EXISTING, 0, nil)
+        if handle ~= INVALID_HANDLE then
+            discord_pipe = handle
+            dbg("Connected to %s.", pipe_name)
+
+            local handshake = string.format('{"v":1,"client_id":"%s"}', get_app_id())
+            if send_frame(0, handshake) then
+                connection_state = "handshaking"
+                handshake_deadline = time_global() + HANDSHAKE_TIMEOUT_MS
+                dbg("Handshake sent, waiting for READY.")
+            else
+                log_error("Failed to write Discord handshake packet.")
+                close_discord_pipe("handshake write failed")
+            end
+            return
+        end
+    end
+    dbg("No discord-ipc-N pipe found; is Discord running?")
+end
+
+local function poll_handshake()
+    local avail = ffi.new("DWORD[1]")
+    if k32.PeekNamedPipe(discord_pipe, nil, 0, nil, avail, nil) == 0 then
+        close_discord_pipe("pipe broke during handshake")
+        return
+    end
+
+    if avail[0] > 0 then
+        local buf = ffi.new("char[?]", avail[0])
+        local read = ffi.new("DWORD[1]")
+        if k32.ReadFile(discord_pipe, buf, avail[0], read, nil) == 0 then
+            close_discord_pipe("read failed during handshake")
+            return
+        end
+        local response = read_frame_payload(buf, read[0])
+        if response:find("READY", 1, true) then
+            dbg("Handshake response: %s", response)
+        else
+            log_error("Handshake did not return READY, Discord said: %s", response)
+        end
+        connection_state = "ready"
+        return
+    end
+
+    if time_global() > handshake_deadline then
+        log_error("Discord handshake timed out.")
+        close_discord_pipe("handshake timeout")
+    end
+end
+
+local function poll_ready()
+    local avail = ffi.new("DWORD[1]")
+    if k32.PeekNamedPipe(discord_pipe, nil, 0, nil, avail, nil) == 0 then
+        close_discord_pipe("pipe broke")
+        return
+    end
+
+    if avail[0] > 0 then
+        local buf = ffi.new("char[?]", avail[0])
+        local read = ffi.new("DWORD[1]")
+        if k32.ReadFile(discord_pipe, buf, avail[0], read, nil) ~= 0 then
+            dbg("Discord ack: %s", read_frame_payload(buf, read[0]))
+        end
+    end
+
+    if not pending_payload then return end
+
+    local now = time_global()
+    if now - last_send_time < RATE_LIMIT_COOLDOWN_MS then return end
+
+    local activity_frame = string.format(
+        '{"cmd":"SET_ACTIVITY","args":{"pid":%d,"activity":%s},"nonce":"anomaly_rpc"}',
+        tonumber(k32.GetCurrentProcessId()), pending_payload
+    )
+
+    if send_frame(1, activity_frame) then
+        dbg("Presence sent to Discord.")
+        last_sent_payload = pending_payload
+        pending_payload = nil
+        last_send_time = now
+    else
+        log_error("Failed to write SET_ACTIVITY packet.")
+        close_discord_pipe("write failed")
+    end
+end
+
+local function network_tick()
+    if not FFI_OK then
+        if not ffi_warned then
+            log_error("LuaJIT FFI unavailable; Discord presence is disabled.")
+            ffi_warned = true
+        end
+        return
+    end
+
+    if connection_state == "disconnected" then
+        local now = time_global()
+        if now >= next_connect_attempt then
+            try_connect_discord()
+            next_connect_attempt = now + RECONNECT_RETRY_MS
+        end
+    elseif connection_state == "handshaking" then
+        poll_handshake()
+    elseif connection_state == "ready" then
+        poll_ready()
+    end
 end
 
 local CP1251_TO_UNICODE = {
@@ -156,8 +358,12 @@ local function process_template(template_str, variables)
     return result
 end
 
+-- ==============================================================================
+-- Presence Template Loading
+-- ==============================================================================
+
 local TEMPLATE_KEYS = {
-    "details", "details_main_menu", "state",
+    "details", "state",
     "large_image_key", "large_image_text",
     "small_image_key", "small_image_text",
     "party_size", "party_max",
@@ -250,25 +456,19 @@ local function dump_placeholder_values(variables)
     write_custom_log("[DEBUG]", "==============================")
 end
 
-local function build_variables(is_in_menu)
-    local raw_level = is_in_menu and "main_menu" or safe_call("level.name", "unknown", level.name)
-    local raw_faction = is_in_menu and "none" or safe_call("community", "stalker", character_community, db.actor)
-    raw_faction = raw_faction:gsub("^actor_", "")
+local function build_variables()
+    local raw_level = safe_call("level.name", "unknown", level.name)
+    local raw_faction = safe_call("community", "stalker", character_community, db.actor):gsub("^actor_", "")
 
     local variables = {
-        level = is_in_menu and "Main Menu" or cp1251_to_utf8(safe_call("translate level", raw_level, game.translate_string, raw_level)),
+        level = cp1251_to_utf8(safe_call("translate level", raw_level, game.translate_string, raw_level)),
         level_raw = string.lower(raw_level),
-        faction = is_in_menu and "" or cp1251_to_utf8(safe_call("translate faction", raw_faction, game.translate_string, raw_faction)),
+        faction = cp1251_to_utf8(safe_call("translate faction", raw_faction, game.translate_string, raw_faction)),
         faction_raw = string.lower(raw_faction),
-        health = is_in_menu and 0 or safe_call("health", 100, function() return math.floor(db.actor.health * 100) end),
-        money = is_in_menu and 0 or safe_call("money", 0, db.actor.money, db.actor),
-        squad_size = is_in_menu and 0 or get_squad_size(),
+        health = safe_call("health", 100, function() return math.floor(db.actor.health * 100) end),
+        money = safe_call("money", 0, db.actor.money, db.actor),
+        squad_size = get_squad_size(),
     }
-
-    if is_in_menu then
-        variables.active_task = ""
-        return variables
-    end
 
     for _, def in ipairs(STAT_DEFS) do
         variables[def[1]] = get_stat(def[2])
@@ -293,20 +493,20 @@ local function build_buttons(tmpl)
     return buttons
 end
 
-local function write_rpc_json(dump_placeholders)
-    local tmpl = load_custom_templates()
-    local is_in_menu = (db.actor == nil)
-    local variables = build_variables(is_in_menu)
+-- ==============================================================================
+-- Presence Payload Construction
+-- ==============================================================================
 
-    if dump_placeholders then dump_placeholder_values(variables) end
-
+local function build_discord_payload(tmpl, variables)
     local discord_payload = {
         timestamps = { start = _G.anomaly_rpc_start_time },
     }
 
-    local details_tmpl = is_in_menu and tmpl.details_main_menu or tmpl.details
-    if not is_empty(details_tmpl) then
-        discord_payload.details = process_template(details_tmpl, variables)
+    if not is_empty(tmpl.details) then
+        discord_payload.details = process_template(tmpl.details, variables)
+    end
+    if not is_empty(tmpl.state) then
+        discord_payload.state = process_template(tmpl.state, variables)
     end
 
     local assets = {}
@@ -316,77 +516,75 @@ local function write_rpc_json(dump_placeholders)
     if not is_empty(tmpl.large_image_text) then
         assets.large_text = process_template(tmpl.large_image_text, variables)
     end
-
-    if not is_in_menu then
-        if not is_empty(tmpl.state) then
-            discord_payload.state = process_template(tmpl.state, variables)
-        end
-        if not is_empty(tmpl.small_image_key) then
-            assets.small_image = process_template(tmpl.small_image_key, variables)
-        end
-        if not is_empty(tmpl.small_image_text) then
-            assets.small_text = process_template(tmpl.small_image_text, variables)
-        end
-
-        local p_size = tonumber(process_template(tmpl.party_size, variables))
-        local p_max = tonumber(process_template(tmpl.party_max, variables))
-
-        if p_size ~= nil then
-            if p_max ~= nil then
-                discord_payload.party = { size = { p_size, p_max } }
-            else
-                discord_payload.party = { size = { p_size } }
-            end
-        end
+    if not is_empty(tmpl.small_image_key) then
+        assets.small_image = process_template(tmpl.small_image_key, variables)
     end
-
+    if not is_empty(tmpl.small_image_text) then
+        assets.small_text = process_template(tmpl.small_image_text, variables)
+    end
     if next(assets) ~= nil then
         discord_payload.assets = assets
+    end
+
+    local p_size = tonumber(process_template(tmpl.party_size, variables))
+    local p_max = tonumber(process_template(tmpl.party_max, variables))
+    if p_size ~= nil then
+        discord_payload.party = { size = p_max ~= nil and { p_size, p_max } or { p_size } }
     end
 
     local buttons = build_buttons(tmpl)
     if #buttons > 0 then discord_payload.buttons = buttons end
 
-    local encoded = json_encode(discord_payload)
+    return discord_payload
+end
 
-    if encoded == last_written_json then
+-- rebuilds game state and queues it for delivery; the network state machine
+-- (see network_tick above) is what actually sends it, rate-limited
+local function update_presence(dump_placeholders)
+    local tmpl = load_custom_templates()
+    local variables = build_variables()
+
+    if dump_placeholders then dump_placeholder_values(variables) end
+
+    local encoded = json_encode(build_discord_payload(tmpl, variables))
+
+    if encoded == last_sent_payload or encoded == pending_payload then
         return
     end
 
-    local final_path = "..\\appdata\\" .. RPC_SUBFOLDER .. "\\rpc_addon_state.json"
-
-    local f = io.open(final_path, "w")
-    if not f then return end
-    f:write(encoded)
-    f:close()
-
-    last_written_json = encoded
+    pending_payload = encoded
+    dbg("Presence payload changed, queued for delivery.")
 end
+
+-- ==============================================================================
+-- Update Loop / Callback Wiring
+-- ==============================================================================
 
 function actor_on_update()
     if not db.actor then return end
+
+    safe_call("network_tick", nil, network_tick)
+
     local tg = time_global()
     if tg > last_update_time + POLL_INTERVAL_MS then
         last_update_time = tg
         refresh_debug_state()
-        safe_call("write_rpc_json", nil, write_rpc_json)
+        safe_call("update_presence", nil, update_presence)
     end
 end
 
 function on_game_start()
     refresh_debug_state()
+    dbg("Anomaly RPC starting up.")
     RegisterScriptCallback("on_option_change", function(...) refresh_debug_state() end)
     RegisterScriptCallback("actor_on_first_update", function()
         refresh_debug_state()
         local should_dump = not has_dumped_placeholders
         has_dumped_placeholders = true
-        safe_call("write_rpc_json", nil, write_rpc_json, should_dump)
+        safe_call("update_presence", nil, update_presence, should_dump)
     end)
     RegisterScriptCallback("actor_on_update", actor_on_update)
     RegisterScriptCallback("on_level_changing", function()
-        safe_call("write_rpc_json", nil, write_rpc_json)
-    end)
-    RegisterScriptCallback("main_menu_on_init", function()
-        safe_call("write_rpc_json", nil, write_rpc_json)
+        safe_call("update_presence", nil, update_presence)
     end)
 end

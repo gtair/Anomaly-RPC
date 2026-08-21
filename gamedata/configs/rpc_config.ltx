@@ -6,14 +6,8 @@
 
 
 ; ============================= Primary Text Lines =============================
-; These display as "Details" and "State" on your Discord profile
 
 details = "Exploring {level} as a {rank} Stalker"
-
-; when in the main menu, the addon will ignore party_size, party_limit, state, small_image_key, small_image_text and details
-; and instead display only details_main_menu. Do not use any placeholders in this key as they do not exist in the main menu.
-details_main_menu = "In the main menu"
-
 state = "{money}₽ | {health}% HP"
 
 
@@ -22,25 +16,29 @@ state = "{money}₽ | {health}% HP"
 large_image_key = "z_anomaly_ico"
 large_image_text = "Playing Stalker Anomaly"
 
-; if you are using my app ID in the cpp code, you can keep this as is to display faction patches.
 small_image_key = "{faction_raw}"
 small_image_text = "Member of {faction}"
 
 
 ; ============================ Party/Squad Details =============================
-; Displays as "(party_size of party_max)" in Discord
 
 party_size = {squad_size}
-
 ; party_max can never be less than party_size so it is recommended to not change this.
 party_max = {squad_size}
 
 
-; ========================== Clickable Custom Buttons ==========================
-; Discord allows a maximum of 2 buttons. URLs must be full HTTPS links.
+; ============================= Discord Application ============================
+; URLs must be full HTTPS links or asset names
 
 button_1_label = "Download Anomaly"
 button_1_url = "https://www.moddb.com/mods/stalker-anomaly"
 
 button_2_label = "Download Addon"
 button_2_url = "https://github.com/gtair/Anomaly-RPC"
+
+
+; ============================ Discord Application =============================
+; The Discord Developer Portal application ID used for Rich Presence.
+; Only change this if you registered your own application to change name or add custom assets.
+
+app_id = 1528189827089170582
