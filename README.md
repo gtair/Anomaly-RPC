@@ -1,5 +1,5 @@
 # Installation
-Simply download the zip from the latest release and drag the gamedata folder into your game root Then disable the basic anomaly rpc in settings > other
+Simply download the zip from the latest release and drag the gamedata folder into your game root Then disable the basic anomaly rpc in `settings > Others > Discord Status`
 
 ## Compatability
 This mod should be compatible with virtually every other mod for this game. If any conflicts arise, please let me know.
