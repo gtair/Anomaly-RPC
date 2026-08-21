@@ -1,16 +1,14 @@
 # Installation
-Simply download the zip from the latest release and drag the gamedata and bin folders into your root anomaly folder. If you're making a modpack, you also need to put the license file somewhere players can find it.
-> [!WARNING]
-> Currently, the mod hooks into d3d11.dll. Therefore, it will only function on the directx11 version of the game. This is subject to change though.
-
-## Uninstall
-Just delete the files you originally installed. Additionally the addon creates the folder `.\appdata\AnomalyRPC`
+Simply download the zip from the latest release and drag the gamedata folder into your game root Then disable the basic anomaly rpc in settings > other
 
 ## Compatability
-This mod should be compatible with virtually every other mod for this game except for mods that also hook into d3d11.dll though I wouldn't know of a single mod that does this.
+This mod should be compatible with virtually every other mod for this game. If any conflicts arise, please let me know.
 
-# Bug reports
-If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging and logging to file. Write a comment on the [moddb page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc/) of the addon. Additionally you can find me on discord (including the official anomaly discord server) under the handle @gtair
+## Use in Modpacks
+Same as with most other mods, as long as my license file that is shipped in the mod is preserved I'd love to see this in modpacks
+
+# Bug reports and contact
+If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging. Write a comment on the [moddb page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc/) of the addon. Additionally you can find me on discord (including the official anomaly discord server) under the handle @gtair
 
 # Customization
 While the addon will work out of the box and look great at it, you can fully customize the look of the rpc in [this](https://github.com/gtair/Anomaly-RPC/blob/main/gamedata/configs/rpc_config.ltx) configuration file;
@@ -56,6 +54,3 @@ While the addon will work out of the box and look great at it, you can fully cus
 | `{stashes_found}` | Stashes found | 7 |
 | `{wounded_helped}` | Wounded NPCs helped/healed | 1 |
 | `{field_dressings}` | Field dressings/bandages applied | 7 |
-
-## advanced customization
-To use your own discord app (in order to, for example, change the name of the app or to upload your own assets without having to host them on an external page) you can edit [this](https://github.com/gtair/Anomaly-RPC/blob/5266374ea411da60dc1094ab79a682d84dbed066/main.cpp#L16) variable to your own app ID and then compile d3d11.dll yourself. In the future, you won't have to compile yourself anymore. 
