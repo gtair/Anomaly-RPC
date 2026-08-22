@@ -1,11 +1,15 @@
 # Installation
 Simply download the zip from the latest release and drag the gamedata folder into your game root Then disable the basic anomaly rpc in `settings > Others > Discord Status`
 
+## Linux
+Additionally on any linux device, you need an ipc bridge like this one.
+https://github.com/0e4ef622/wine-discord-ipc-bridge
+
 ## Compatability
 This mod should be compatible with virtually every other mod for this game. If any conflicts arise, please let me know.
 
 ## Use in Modpacks
-Same as with most other mods, as long as my license file that is shipped in the mod is preserved I'd love to see this in modpacks
+Same as with most other mods, as long as my license file that is shipped in the releases is preserved I'd love to see this in modpacks! I actually think it gives devs an amazing way to brand their modpacks.
 
 # Bug reports and contact
 If you want to submit a bug report or need help with a problem on your end, having MCM installed is a requirement. It is essential to enable verbose logging. Write a comment on the [moddb page](https://www.moddb.com/mods/stalker-anomaly/addons/anomalyrpc/) of the addon. Additionally you can find me on discord (including the official anomaly discord server) under the handle @gtair
