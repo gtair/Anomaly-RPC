@@ -3,6 +3,7 @@ Simply download the zip from the latest release and drag the gamedata folder int
 
 ## Linux
 Additionally on any linux device, you need an ipc bridge like this one.
+
 https://github.com/0e4ef622/wine-discord-ipc-bridge
 
 ## Compatability
