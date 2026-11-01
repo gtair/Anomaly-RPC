@@ -130,9 +130,12 @@ end
 
 local function send_frame(opcode, json_payload)
     local frame = le_u32(opcode) .. le_u32(#json_payload) .. json_payload
-    local buf = ffi.new("char[?]", #frame, frame)
+    -- Pass the Lua string straight to WriteFile. Do NOT copy it into
+    -- ffi.new("char[?]", #frame, frame): LuaJIT also copies the string's
+    -- trailing NUL, which overruns a buffer sized to exactly #frame and
+    -- corrupts the neighbouring allocation (crashes later in lj_alloc_free).
     local written = ffi.new("DWORD[1]")
-    return k32.WriteFile(discord_pipe, buf, #frame, written, nil) ~= 0
+    return k32.WriteFile(discord_pipe, frame, #frame, written, nil) ~= 0
 end
 
 local function read_frame_payload(buf, len)
